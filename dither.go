@@ -202,13 +202,13 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 			color, best = i, dist
 		}
 		
-		_, cA, cB := d.labPalette[i][0], d.labPalette[i][1], d.labPalette[i][2]
+		cA, cB := d.labPalette[i][1], d.labPalette[i][2]
 		deltaA := labA - cA
 		deltaB := labB - cB
 		
                 distLAB := deltaA * deltaA + deltaB * deltaB
 		
-		if distLAB < bestLAB {
+		if distLAB < bestLAB &&  (c[0] != c[1] || c[0] != c[2]){ // ignore gray-scale assignments
 			colorLAB, bestLAB = i, distLAB
 		}
 	}
@@ -219,10 +219,10 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 	    return color // black, white or gray
 	} 
 	if (color == colorLAB) {
-            fmt.Print("colors same", color)
+            //fmt.Print("colors same", color)
 	    return color // black, white or gray
 	}
-	fmt.Print("colors diifer org", color, "lab", colorLAB)
+	//fmt.Print("colors diifer org", color, "lab", colorLAB)
 	return colorLAB
 }
 
