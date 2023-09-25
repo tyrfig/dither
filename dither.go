@@ -1,6 +1,7 @@
 package dither
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -172,7 +173,7 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 	L, labA, labB := xyz2lab(linearRGBtoXYZ(r,g,b))
 	
 	color, best := 0, uint32(math.MaxUint32)
-	colorLAB, bestLAB := 0, 100000000.0
+	colorLAB, bestLAB := 0, float64(100000000.0)
 	
 	for i, c := range d.linearPalette {
 
@@ -201,18 +202,20 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 			color, best = i, dist
 		}
 		
-		cL, cA, cB := d.labPalette[i]
+		cL, cA, cB := d.labPalette[i][0], d.labPalette[i][1], d.labPalette[i][2]
 		deltaA := labA - cA
 		deltaB := labB - cB
 		
-                distLAB := delatA * deltaA + deltaB * deltaB
+                distLAB := deltaA * deltaA + deltaB * deltaB
 		
 		if distLAB < bestLAB {
 			colorLAB, bestLAB = i, distLAB
 		}
 	}
+
+	c :=  d.linearPalette[color]
 	
-	if (color[0] == color[1] && color[0] == color[2]) {
+	if (c[0] == c[1] && c[0] == c[2]) {
 	    return color // black, white or gray
 	} 
 	if (color == colorLAB) {
