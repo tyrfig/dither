@@ -63,8 +63,6 @@ func xyz2lab(x float64, y float64, z float64) (float64, float64, float64) {
     y_scaled := y
     z_scaled = z / 1.08883
     
-    mask = (xyz_scale > .008856).type(torch.FloatTensor)
-	
     x_int := 0.0
     if x_scaled > .008856 {
 	x_int = math.Pow(x_scaled, 1.0/3.0)
