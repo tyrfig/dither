@@ -1,7 +1,7 @@
 package dither
 
+// "fmt"
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
