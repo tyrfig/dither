@@ -166,8 +166,7 @@ func (d *Ditherer) closestColorORG(r, g, b uint16) int {  // closestColor
 	return color
 }
 
-
-func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
+func (d *Ditherer) closestColorAB(r, g, b uint16) int { // closestColorLAB
 	// Go through each color and find the closest one
 
 	_, labA, labB := xyz2lab(linearRGBtoXYZ(r,g,b))
@@ -220,6 +219,69 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 	} 
 	if (color == colorLAB) {
             //fmt.Print("colors same", color)
+	    return color // black, white or gray
+	}
+	//fmt.Print("colors diifer org", color, "lab", colorLAB)
+	return colorLAB
+}
+
+
+func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
+	// Go through each color and find the closest one
+
+	labL, labA, labB := xyz2lab(linearRGBtoXYZ(r,g,b))
+	
+	color, best := 0, uint32(math.MaxUint32)
+	colorLAB, bestLAB := 0, float64(100000000.0)
+	
+	for i, c := range d.linearPalette {
+
+		// Euclidean distance, but the square root part is removed
+		// Weight by luminance value to approximate radiant power / luminance
+		// as humans perceive it.
+		//
+		// These values were taken from Wikipedia:
+		// https://en.wikipedia.org/wiki/Grayscale#Colorimetric_(perceptual_luminance-preserving)_conversion_to_grayscale
+		// 0.2126, 0.7152, 0.0722
+		// The are changed to fractions here to keep everything in integer math:
+		//     1063/5000, 447/625, 361/5000
+		// Unfortunately this requires promoting them to uint64 to prevent overflow
+
+		
+		dist := uint32(
+			1063*uint64(sqDiff(r, c[0]))/5000 +
+				447*uint64(sqDiff(g, c[1]))/625 +
+				361*uint64(sqDiff(b, c[2]))/5000,
+		)
+		
+                if dist < best {
+			if dist == 0 {
+				return i
+			}
+			color, best = i, dist
+		}
+		
+		cL, cA, cB := d.labPalette[i][0], d.labPalette[i][1], d.labPalette[i][2]
+		
+		deltaL := labL - cL
+		deltaA := labA - cA
+		deltaB := labB - cB
+		
+                distLAB := deltaL * deltaL + deltaA * deltaA + deltaB * deltaB
+		
+		if distLAB < bestLAB {
+			colorLAB, bestLAB = i, distLAB
+		}
+	}
+/*
+	c :=  d.linearPalette[color]
+	
+	if (c[0] == c[1] && c[0] == c[2]) {
+	    return color // black, white or gray
+	} 
+	
+ */
+	if (color == colorLAB) {
 	    return color // black, white or gray
 	}
 	//fmt.Print("colors diifer org", color, "lab", colorLAB)
@@ -569,6 +631,138 @@ func (d *Ditherer) DitherORG(src image.Image) image.Image {
 	}
 	return img
 }
+
+
+func (d *Ditherer) DitherAB(src image.Image) image.Image {
+	if d.invalid() {
+		panic("dither: invalid Ditherer")
+	}
+
+	var img draw.Image
+
+	if pi, ok := src.(*image.Paletted); ok {
+		if !samePalette(d.palette, pi.Palette) {
+			// Can't use this because it will change image colors
+			// Instead make a copy, and return that later
+			img = copyOfImage(src)
+		}
+	} else if img, ok = src.(draw.Image); !ok {
+		// Can't be changed
+		// Instead make a copy and dither and return that
+		img = copyOfImage(src)
+	}
+
+	if d.Mapper != nil {
+		workers := 1
+		if !d.SingleThreaded {
+			workers = runtime.GOMAXPROCS(0)
+		}
+		parallel(workers, img.(draw.Image), img, func(x, y int, c color.Color) color.Color {
+			r, g, b, a := unpremultAndLinearize(c)
+
+			if a == 0 {
+				// Pixel is transparent, don't dither it
+				return c
+			}
+
+			return d.premult(
+				// Use PixelMapper -> find closest palette color -> get that color
+				// -> cast to color.RGBA64
+				// Comes from d.palette so this cast will always work
+				d.palette[d.closestColorAB(d.Mapper(x, y, r, g, b))].(color.RGBA64),
+				x, y, img,
+			)
+		})
+		return img
+	}
+
+	// Matrix needs to be applied instead
+
+	b := img.Bounds()
+	curPx := d.Matrix.CurrentPixel()
+
+	// Store linear values here instead of converting back and forth and storing
+	// sRGB values inside the image.
+	// Pointers are used to differentiate between a zero value and an unset value
+	lins := make([][][3]*uint16, b.Dy())
+	for i := 0; i < len(lins); i++ {
+		lins[i] = make([][3]*uint16, b.Dx())
+	}
+
+	// Setters and getters for that linear storage
+	linearSet := func(x, y int, r, g, b uint16) {
+		lins[y][x] = [3]*uint16{&r, &g, &b}
+	}
+	linearAt := func(x, y int) (uint16, uint16, uint16) {
+		c := lins[y][x]
+		if c[0] == nil {
+			// This pixel hasn't been linearized yet
+			r, g, b, _ := unpremultAndLinearize(img.At(x, y))
+			linearSet(x, y, r, g, b)
+			return r, g, b
+		}
+		return *c[0], *c[1], *c[2]
+	}
+
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+
+			oldX := x
+			if d.Serpentine && y%2 == 0 {
+				// Reverse direction
+				x = b.Max.X - 1 - x
+			}
+
+			// Quantize current pixel
+			oldR, oldG, oldB := linearAt(x, y)
+			newColorIdx := d.closestColorAB(oldR, oldG, oldB)
+			img.Set(x, y, d.premult(d.palette[newColorIdx].(color.RGBA64), x, y, img))
+
+			new := d.linearPalette[newColorIdx]
+			// Quant errors in each channel
+			er, eg, eb := int32(oldR)-int32(new[0]), int32(oldG)-int32(new[1]), int32(oldB)-int32(new[2])
+
+			// Diffuse error in two dimensions
+			for yy := range d.Matrix {
+				for xx := range d.Matrix[yy] {
+					if d.Matrix[yy][xx] == 0 {
+						// Skip, because it won't affect anything
+						continue
+					}
+
+					// Get the coords of the pixel the error is being applied to
+					deltaX, deltaY := d.Matrix.Offset(xx, yy, curPx)
+					if d.Serpentine && y%2 == 0 {
+						// Reflect the matrix horizontally because we're going right-to-left
+						// Otherwise the matrix would change pixels that have already been set
+						deltaX *= -1
+					}
+					pxX := x + deltaX
+					pxY := y + deltaY
+
+					if !(image.Point{pxX, pxY}.In(b)) {
+						// This is outside the image, so don't bother doing any further calculations
+						continue
+					}
+
+					r, g, b := linearAt(pxX, pxY)
+					linearSet(pxX, pxY,
+						RoundClamp(float32(r)+float32(er)*d.Matrix[yy][xx]),
+						RoundClamp(float32(g)+float32(eg)*d.Matrix[yy][xx]),
+						RoundClamp(float32(b)+float32(eb)*d.Matrix[yy][xx]),
+					)
+				}
+			}
+
+			// Reset the x value to not mess up the for loop
+			// The x value is only changed when (d.Serpentine && y%2 == 0)
+			// But it's reset every time to avoid another if statement
+			x = oldX
+		}
+	}
+	return img
+}
+
 
 // GetColorModel returns a copy of the Ditherer's palette as a color.Model that finds the
 // closest color using Euclidean distance in sRGB space.
