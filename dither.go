@@ -91,7 +91,7 @@ func NewDitherer(palette []color.Color) *Ditherer {
 	d.labPalette = make([][3]float64, len(d.palette))
 	for i := range d.linearPalette {
 		r, g, b := toLinearRGB(d.palette[i])
-		L, labA, labB := xyz2la(linearRGB2XYZ(r, g, b))
+		L, labA, labB := xyz2lab(linearRGBtoXYZ(r, g, b))
 		d.labPalette[i] = [3]float{L, labA, labB}
 		d.linearPalette[i] = [3]uint16{r, g, b}
 	}
