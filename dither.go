@@ -170,7 +170,7 @@ func (d *Ditherer) closestColorORG(r, g, b uint16) int {  // closestColor
 func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 	// Go through each color and find the closest one
 
-	L, labA, labB := xyz2lab(linearRGBtoXYZ(r,g,b))
+	_, labA, labB := xyz2lab(linearRGBtoXYZ(r,g,b))
 	
 	color, best := 0, uint32(math.MaxUint32)
 	colorLAB, bestLAB := 0, float64(100000000.0)
@@ -202,7 +202,7 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
 			color, best = i, dist
 		}
 		
-		cL, cA, cB := d.labPalette[i][0], d.labPalette[i][1], d.labPalette[i][2]
+		_, cA, cB := d.labPalette[i][0], d.labPalette[i][1], d.labPalette[i][2]
 		deltaA := labA - cA
 		deltaB := labB - cB
 		
