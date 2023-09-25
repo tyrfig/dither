@@ -61,7 +61,7 @@ func linearRGBtoXYZ(r uint16, g uint16, b uint16) (float64, float64, float64) {
 func xyz2lab(x float64, y float64, z float64) (float64, float64, float64) {    
     x_scaled := x / 0.95047
     y_scaled := y
-    z_scaled = z / 1.08883
+    z_scaled := z / 1.08883
     
     x_int := 0.0
     if x_scaled > .008856 {
