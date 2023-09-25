@@ -69,6 +69,8 @@ type Ditherer struct {
 
 	// linearPalette holds all the palette colors, but in linear RGB space.
 	linearPalette [][3]uint16
+
+	labPalette [][3]float64
 }
 
 // NewDitherer creates a new Ditherer that uses a copy of the provided palette.
@@ -86,8 +88,11 @@ func NewDitherer(palette []color.Color) *Ditherer {
 
 	// Create linear RGB version of the palette
 	d.linearPalette = make([][3]uint16, len(d.palette))
+	d.labPalette = make([][3]float64, len(d.palette))
 	for i := range d.linearPalette {
 		r, g, b := toLinearRGB(d.palette[i])
+		L, labA, labB := xyz2la(linearRGB2XYZ(r, g, b))
+		d.labPalette[i] = [3]float{L, labA, labB}
 		d.linearPalette[i] = [3]uint16{r, g, b}
 	}
 
