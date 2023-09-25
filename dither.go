@@ -133,7 +133,7 @@ func sqDiff(v1 uint16, v2 uint16) uint32 {
 // closestColor returns the index of the color in the palette that's closest to
 // the provided one, using Euclidean distance in linear RGB space. The provided
 // RGB values must be linear RGB.
-func (d *Ditherer) closestColor(r, g, b uint16) int {
+func (d *Ditherer) closestColorORG(r, g, b uint16) int {  // closestColor
 	// Go through each color and find the closest one
 	color, best := 0, uint32(math.MaxUint32)
 	for i, c := range d.linearPalette {
@@ -164,6 +164,65 @@ func (d *Ditherer) closestColor(r, g, b uint16) int {
 	}
 	return color
 }
+
+
+func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
+	// Go through each color and find the closest one
+
+	L, labA, labB := xyz2lab(linearRGBtoXYZ(r,g,b))
+	
+	color, best := 0, uint32(math.MaxUint32)
+	colorLAB, bestLAB := 0, 100000000.0
+	
+	for i, c := range d.linearPalette {
+
+		// Euclidean distance, but the square root part is removed
+		// Weight by luminance value to approximate radiant power / luminance
+		// as humans perceive it.
+		//
+		// These values were taken from Wikipedia:
+		// https://en.wikipedia.org/wiki/Grayscale#Colorimetric_(perceptual_luminance-preserving)_conversion_to_grayscale
+		// 0.2126, 0.7152, 0.0722
+		// The are changed to fractions here to keep everything in integer math:
+		//     1063/5000, 447/625, 361/5000
+		// Unfortunately this requires promoting them to uint64 to prevent overflow
+
+		
+		dist := uint32(
+			1063*uint64(sqDiff(r, c[0]))/5000 +
+				447*uint64(sqDiff(g, c[1]))/625 +
+				361*uint64(sqDiff(b, c[2]))/5000,
+		)
+		
+                if dist < best {
+			if dist == 0 {
+				return i
+			}
+			color, best = i, dist
+		}
+		
+		cL, cA, cB := d.labPalette[i]
+		deltaA := labA - cA
+		deltaB := labB - cB
+		
+                distLAB := delatA * deltaA + deltaB * deltaB
+		
+		if distLAB < bestLAB {
+			colorLAB, bestLAB = i, distLAB
+		}
+	}
+	
+	if (color[0] == color[1] && color[0] == color[2]) {
+	    return color // black, white or gray
+	} 
+	if (color == colorLAB) {
+            fmt.Print("colors same", color)
+	    return color // black, white or gray
+	}
+	fmt.Print("colors diifer org, color, "lab", colorLAB)
+	return colorLAB
+}
+
 
 // unpremultAndLinearize unpremultiplies the provided color, and returns the
 // linearized RGB values, as well as the unchanged alpha value.
