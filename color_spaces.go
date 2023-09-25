@@ -55,7 +55,7 @@ func linearRGBtoXYZ(r uint16, g uint16, b uint16) (float64, float64, float64) {
 	 x := (0.412453*float64(r) + 0.357580*float64(g) + 0.180423*float64(b)) / 65535.0
 	 y := (0.212671*float64(r) + 0.715160*float64(g) + 0.072169*float64(b)) / 65535.0
          z := (0.019334*float64(r) + 0.119193*float64(g) + 0.950227*float64(b)) / 65535.0
-    return x, y, x
+    return x, y, z
 }
 
 func xyz2lab(x float64, y float64, z float64) (float64, float64, float64) {    
