@@ -219,7 +219,7 @@ func (d *Ditherer) closestColor(r, g, b uint16) int { // closestColorLAB
             fmt.Print("colors same", color)
 	    return color // black, white or gray
 	}
-	fmt.Print("colors diifer org, color, "lab", colorLAB)
+	fmt.Print("colors diifer org," color, "lab", colorLAB)
 	return colorLAB
 }
 
