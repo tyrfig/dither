@@ -273,7 +273,7 @@ func (d *Ditherer) closestColorAND(r, g, b uint16) int { // closestColorAND
 		if distLAB < bestLAB &&  (c[0] != c[1] || c[0] != c[2]){ // ignore gray-scale assignments
 			colorLAB, bestLAB = i, distLAB
 		}
-		if distLABbw < bestLABbw { // ignore gray-scale assignments
+		if distLAB < bestLABbw { // ignore gray-scale assignments
 			colorLABbw, bestLABbw = i, distLAB
 		}
 	}
